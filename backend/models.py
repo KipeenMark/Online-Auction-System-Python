@@ -25,7 +25,7 @@ class User:
         }
 
 class Auction:
-    def __init__(self, title, description, starting_price, minimum_increment, end_time, image_url, seller_id):
+    def __init__(self, title, description, starting_price, minimum_increment, end_time, seller_id, image_url=None):
         self.title = title
         self.description = description
         self.starting_price = float(starting_price)

@@ -124,27 +124,21 @@ def create_auction():
         validate_auction_data(data)
         user_id = get_jwt_identity()
         
-        # Strip data URL prefix if present
-        image_url = data.get('imageUrl', '')
-        if not image_url:
-            raise APIError("Image URL is required", 422)
-            
-        if image_url.startswith('data:'):
-            parts = image_url.split(',')
-            if len(parts) != 2:
-                raise APIError("Invalid image data format", 422)
-            image_url = parts[1]
-            
         try:
+            # Create auction with base data first
             auction = Auction(
                 data['title'],
                 data['description'],
                 float(data['startingPrice']),
                 float(data['minimumIncrement']),
                 datetime.fromisoformat(data['endTime'].replace('Z', '+00:00')),
-                image_url,
                 user_id,
+                None  # No image by default
             )
+
+            # Handle image if provided
+            if 'imageUrl' in data and data['imageUrl']:
+                auction.image_url = data['imageUrl']  # Set image URL if provided
         except Exception as e:
             print(f"Error creating auction object: {str(e)}")
             print(f"Received data: {data}")

@@ -45,14 +45,38 @@ const CreateAuction = () => {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Clear previous errors
+    setError('');
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (jpg, png, etc.)');
+      e.target.value = ''; // Reset file input
+      return;
     }
+
+    // Check file size (2MB limit)
+    const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+    if (file.size > maxSize) {
+      setError(`Image size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds the 2MB limit. Please choose a smaller image.`);
+      e.target.value = ''; // Reset file input
+      return;
+    }
+
+    // If validation passes, set the image and create preview
+    setImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result);
+    };
+    reader.onerror = () => {
+      setError('Failed to read image file');
+      setImage(null);
+      setPreviewUrl('');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleRemoveImage = () => {
@@ -73,10 +97,6 @@ const CreateAuction = () => {
         if (!formData[field]) {
           throw new Error(`Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
         }
-      }
-
-      if (!image) {
-        throw new Error('Please upload an image');
       }
 
       // Validate numeric fields
@@ -100,25 +120,64 @@ const CreateAuction = () => {
       const now = new Date();
       const endTimeUTC = new Date(now.getTime() + (durationInDays * 24 * 60 * 60 * 1000));
 
-      // Convert image to base64
-      const reader = new FileReader();
-      const imageBase64 = await new Promise((resolve, reject) => {
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(image);
-      });
+      // Prepare auction data first
+      const auctionData = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        startingPrice: Number(startingPrice),
+        minimumIncrement: Number(minimumIncrement),
+        endTime: endTimeUTC.toISOString()
+      };
 
-      // Send request with JSON data
-      await axios.post(
+      // Process image only if one was selected
+      if (image) {
+        try {
+          const reader = new FileReader();
+          await new Promise((resolve, reject) => {
+            reader.onload = () => {
+              try {
+                const base64String = reader.result;
+                const base64Data = base64String.split('base64,')[1];
+                
+                // Only validate and add image if successfully processed
+                if (base64Data) {
+                  const approximateSize = (base64Data.length * 0.75) / 1024 / 1024;
+                  if (approximateSize <= 2) {
+                    auctionData.imageUrl = base64Data;
+                  } else {
+                    console.warn('Image skipped: Size exceeds 2MB limit');
+                  }
+                }
+                resolve();
+              } catch (err) {
+                console.warn('Image processing skipped:', err);
+                resolve();
+              }
+            };
+            reader.onerror = () => {
+              console.warn('Image reading skipped');
+              resolve();
+            };
+            reader.readAsDataURL(image);
+          });
+        } catch (err) {
+          console.warn('Image handling skipped:', err);
+        }
+      }
+
+      // Log data for debugging (safely handle all image cases)
+      const dataToPrint = { ...auctionData };
+      if ('imageUrl' in dataToPrint) {
+        dataToPrint.imageUrl = '[Image data present]';
+      } else {
+        dataToPrint.imageUrl = '[No image]';
+      }
+      console.log('Sending auction data:', dataToPrint);
+
+
+      const response = await axios.post(
         'http://localhost:5000/api/auctions',
-        {
-          title: formData.title.trim(),
-          description: formData.description.trim(),
-          startingPrice: startingPrice.toString(),
-          minimumIncrement: minimumIncrement.toString(),
-          endTime: endTimeUTC.toISOString(),
-          imageUrl: imageBase64
-        },
+        auctionData,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -127,24 +186,39 @@ const CreateAuction = () => {
         }
       );
 
+      if (!response.data) {
+        throw new Error('No response from server');
+      }
+
       // Navigate to the my auctions page on success
       navigate('/my-auctions');
     } catch (err) {
-      console.error('Error creating auction:', err);
-      
-      // Handle different types of errors
-      if (err.code === 'ERR_NETWORK') {
-        setError('Network error: Please check your connection and try again. If the image is too large, try using a smaller image.');
+      if (err.response?.status === 422) {
+        // Handle validation errors from backend
+        const errorMessage = err.response.data.error || 'Invalid auction data';
+        setError(`Validation error: ${errorMessage}`);
+      } else if (err.message && err.message.includes('Image size')) {
+        // Handle image size errors
+        setError('Image size error: Please select an image smaller than 2MB');
+      } else if (err.code === 'ERR_NETWORK') {
+        setError('Network error: Please check your connection and try again');
       } else if (err.response?.data?.error) {
-        // Display specific error from backend
-        console.log('Backend error details:', err.response.data);
+        // Handle other backend errors
         setError(`Server error: ${err.response.data.error}`);
       } else if (err.message) {
-        // Display validation errors from frontend
-        setError(`Validation error: ${err.message}`);
+        // Handle other client-side errors
+        setError(`Error: ${err.message}`);
       } else {
         setError('Failed to create auction. Please try again.');
       }
+
+      // Log error details for debugging
+      console.error('Auction creation error:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+        code: err.code
+      });
     } finally {
       setLoading(false);
     }

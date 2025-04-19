@@ -42,21 +42,24 @@ def serialize_mongo_doc(doc):
 
 def validate_auction_data(data):
     """Validate auction creation data"""
-    required_fields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'endTime', 'imageUrl']
+    required_fields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'endTime']
     for field in required_fields:
         if field not in data:
             raise APIError(f"Missing required field: {field}")
             
-    # Validate image size (max 2MB in base64)
-    max_image_size = 2 * 1024 * 1024  # 2MB
-    image_url = data['imageUrl']
-    
-    # Strip data URL prefix if present before size check
-    if image_url.startswith('data:'):
-        image_url = image_url.split(',')[1]
-    
-    if len(image_url) > max_image_size:
-        raise APIError("Image size too large. Maximum size is 2MB", 422)
+    # Validate image if provided
+    if 'imageUrl' in data:
+        image_data = data['imageUrl']
+        max_image_size = 2 * 1024 * 1024  # 2MB
+        
+        # Validate base64 format if image is provided
+        valid_chars = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
+        if not all(c in valid_chars for c in image_data):
+            raise APIError("Invalid image data format", 422)
+        
+        # Check image size
+        if len(image_data) > max_image_size:
+            raise APIError("Image size too large. Maximum size is 2MB", 422)
     
     try:
         starting_price = float(data['startingPrice'])
