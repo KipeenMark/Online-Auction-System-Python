@@ -15,6 +15,8 @@ import {
 import DescriptionIcon from '@mui/icons-material/Description';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import ImageIcon from '@mui/icons-material/Image';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 const CreateAuction = () => {
   const navigate = useNavigate();
@@ -26,8 +28,10 @@ const CreateAuction = () => {
     description: '',
     startingPrice: '',
     minimumIncrement: '',
-    duration: ''
+    duration: '',
+    imageUrl: ''
   });
+  const [imagePreview, setImagePreview] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -35,6 +39,44 @@ const CreateAuction = () => {
       ...formData,
       [name]: value,
     });
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please upload a valid image file (JPEG, PNG, or GIF)');
+      return;
+    }
+
+    // Validate file size (2MB limit)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be smaller than 2MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadstart = () => setLoading(true);
+    reader.onerror = () => {
+      setError('Error reading file');
+      setLoading(false);
+    };
+    reader.onloadend = () => {
+      const base64String = reader.result;
+      setFormData(prev => ({ ...prev, imageUrl: base64String }));
+      setImagePreview(base64String);
+      setError(''); // Clear any previous errors
+      setLoading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeImage = () => {
+    setFormData(prev => ({ ...prev, imageUrl: '' }));
+    setImagePreview('');
   };
 
   const handleSubmit = async (e) => {
@@ -72,13 +114,14 @@ const CreateAuction = () => {
       const now = new Date();
       const endTimeUTC = new Date(now.getTime() + (durationInDays * 24 * 60 * 60 * 1000));
 
-      // Prepare auction data first
+      // Prepare auction data with image if provided
       const auctionData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         startingPrice: Number(startingPrice),
         minimumIncrement: Number(minimumIncrement),
-        endTime: endTimeUTC.toISOString()
+        endTime: endTimeUTC.toISOString(),
+        imageUrl: formData.imageUrl || null
       };
 
       // Log data for debugging (safely handle all image cases)
@@ -218,6 +261,68 @@ const CreateAuction = () => {
                   startAdornment: <InputAdornment position="start">$</InputAdornment>,
                 }}
               />
+            </Grid>
+
+            {/* Image Upload */}
+            <Grid item xs={12}>
+              <input
+                accept="image/*"
+                style={{ display: 'none' }}
+                id="image-upload"
+                type="file"
+                onChange={handleImageUpload}
+              />
+              <label htmlFor="image-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  fullWidth
+                  startIcon={imagePreview ? <ImageIcon /> : <CloudUploadIcon />}
+                  sx={{
+                    py: 2,
+                    mb: imagePreview ? 2 : 0,
+                    borderStyle: 'dashed',
+                    '&:hover': {
+                      borderStyle: 'dashed'
+                    }
+                  }}
+                >
+                  {imagePreview ? 'Change Image' : 'Upload Image (Optional)'}
+                </Button>
+              </label>
+              {imagePreview && (
+                <Box sx={{ mt: 2, mb: 2, position: 'relative' }}>
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '200px',
+                      display: 'block',
+                      margin: '0 auto',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    color="error"
+                    size="small"
+                    onClick={removeImage}
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      minWidth: 'auto',
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%'
+                    }}
+                  >
+                    ×
+                  </Button>
+                </Box>
+              )}
             </Grid>
 
             {/* Duration */}

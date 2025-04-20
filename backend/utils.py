@@ -26,6 +26,9 @@ def serialize_mongo_doc(doc):
             if isinstance(value, ObjectId):
                 doc[key] = str(value)
             elif isinstance(value, datetime):
+                # Ensure datetime is timezone aware before serializing
+                if value.tzinfo is None:
+                    value = value.replace(tzinfo=datetime.now().astimezone().tzinfo)
                 doc[key] = value.isoformat()
             elif isinstance(value, list):
                 doc[key] = [serialize_mongo_doc(item) for item in value]
@@ -69,8 +72,10 @@ def validate_auction_data(data):
 
     # Validate endTime
     try:
+        # Parse end time and ensure it's timezone aware
         end_time = datetime.fromisoformat(data['endTime'].replace('Z', '+00:00'))
-        if end_time <= datetime.utcnow():
+        now = datetime.now(end_time.tzinfo)  # Get current time with same timezone
+        if end_time <= now:
             raise APIError("End time must be in the future")
     except ValueError:
         raise APIError("Invalid end time format", 422)
@@ -82,8 +87,15 @@ def validate_bid_data(data, current_bid):
     
     try:
         bid_amount = float(data['amount'])
-        if bid_amount <= current_bid:
-            raise APIError("Bid must be higher than current bid")
+        
+        # Validate bid amount is a positive number
+        if bid_amount <= 0:
+            raise APIError("Bid amount must be greater than 0")
+        
+        # Validate bid amount is higher than current bid
+        if current_bid and bid_amount <= current_bid:
+            raise APIError(f"Bid must be higher than current bid (${current_bid})")
+            
     except (ValueError, TypeError):
         raise APIError("Bid amount must be a valid number")
 

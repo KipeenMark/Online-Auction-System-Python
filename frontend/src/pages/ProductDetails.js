@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
 import {
   Container,
   Grid,
@@ -23,49 +25,151 @@ import {
 } from '@mui/icons-material';
 
 const ProductDetails = () => {
-  // eslint-disable-next-line no-unused-vars
-  const { id } = useParams(); // Will be used to fetch product data from API
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { token, user } = useAuth();
   const [bidAmount, setBidAmount] = useState('');
+  const [auction, setAuction] = useState(null);
 
-  // Mock data - will be replaced with API call
-  const auction = {
-    id: 1,
-    title: "Vintage Watch Collection",
-    description: "Rare collection of vintage watches from the 1960s. Includes three perfectly preserved timepieces from renowned Swiss manufacturers. Each watch has been authenticated and comes with original documentation.",
-    currentBid: 1500,
-    minimumBid: 1550, // Current bid + minimum increment
-    startingPrice: 1000,
-    endTime: "2024-04-20T18:00:00",
-    imageUrl: "https://placeholder.com/800x600",
-    seller: {
-      name: "John Doe",
-      rating: 4.8,
-      totalSales: 45
-    },
-    bids: [
-      { id: 1, amount: 1500, bidder: "Alice Smith", time: "2024-04-15T14:30:00" },
-      { id: 2, amount: 1400, bidder: "Bob Johnson", time: "2024-04-15T13:45:00" },
-      { id: 3, amount: 1300, bidder: "Carol Williams", time: "2024-04-15T12:20:00" },
-    ]
+  // Helper functions
+  const getCurrentPrice = () => {
+    if (!auction) return 0;
+    return auction.current_bid || auction.starting_price;
   };
 
-  const handleBid = (e) => {
+  const getMinimumBid = () => {
+    if (!auction) return 0;
+    return auction.current_bid
+      ? auction.current_bid + auction.minimum_increment
+      : auction.starting_price;
+  };
+
+  const isBidValid = () => {
+    if (!auction || !token) return false;
+    const minBid = getMinimumBid();
+    return Number(bidAmount) >= minBid;
+  };
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchAuction();
+    const interval = setInterval(fetchAuction, 10000); // Update every 10 seconds
+    return () => clearInterval(interval);
+  }, [id]);
+
+  const fetchAuction = async () => {
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/api/auctions/${id}`,
+        {
+          headers: token ? {
+            'Authorization': `Bearer ${token}`
+          } : {}
+        }
+      );
+      setAuction(response.data);
+      setError('');
+    } catch (err) {
+      setError('Failed to load auction details');
+      console.error('Error fetching auction:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBid = async (e) => {
     e.preventDefault();
-    // Handle bid submission logic here
-    console.log('Bid submitted:', bidAmount);
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await axios.post(
+        `http://localhost:5000/api/auctions/${id}/bid`,
+        { amount: Number(bidAmount) },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      setBidAmount('');
+      await fetchAuction(); // Refresh auction data after bid
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to place bid');
+    }
   };
 
   const formatTimeLeft = (endTime) => {
-    const end = new Date(endTime);
-    const now = new Date();
-    const diff = end - now;
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${days}d ${hours}h ${minutes}m left`;
+    try {
+      const end = new Date(endTime);
+      const now = new Date();
+      const diff = end - now;
+
+      // If auction has ended
+      if (diff < 0) {
+        return "Auction Ended";
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      // Format the time remaining
+      if (days > 0) {
+        return `${days} day${days !== 1 ? 's' : ''}, ${hours} hour${hours !== 1 ? 's' : ''} remaining`;
+      } else if (hours > 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''}, ${minutes} minute${minutes !== 1 ? 's' : ''} remaining`;
+      } else if (minutes > 0) {
+        return `${minutes} minute${minutes !== 1 ? 's' : ''} remaining`;
+      } else {
+        return "Ending in less than a minute";
+      }
+    } catch (err) {
+      console.error('Error formatting time:', err);
+      return 'Invalid date';
+    }
   };
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 6, textAlign: 'center' }}>
+        <Typography>Loading auction details...</Typography>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 6, textAlign: 'center' }}>
+        <Typography color="error">{error}</Typography>
+        <Button
+          variant="contained"
+          onClick={fetchAuction}
+          sx={{ mt: 2 }}
+        >
+          Retry
+        </Button>
+      </Container>
+    );
+  }
+
+  if (!auction) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 6, textAlign: 'center' }}>
+        <Typography>Auction not found</Typography>
+      </Container>
+    );
+  }
+
+  // Calculate minimum bid
+  const minimumBid = auction.current_bid
+    ? auction.current_bid + auction.minimum_increment
+    : auction.starting_price;
 
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
@@ -124,7 +228,7 @@ const ProductDetails = () => {
           >
             <Box sx={{ position: 'relative' }}>
               <img
-                src={auction.imageUrl}
+                src={auction.image_url || 'https://via.placeholder.com/800x600'}
                 alt={auction.title}
                 style={{
                   width: '100%',
@@ -147,7 +251,7 @@ const ProductDetails = () => {
               >
                 <Chip
                   icon={<AccessTime sx={{ color: 'white' }} />}
-                  label={formatTimeLeft(auction.endTime)}
+                  label={formatTimeLeft(auction.end_time)}
                   sx={{
                     bgcolor: 'rgba(255,255,255,0.15)',
                     color: 'white',
@@ -266,7 +370,7 @@ const ProductDetails = () => {
                     Current Bid
                   </Typography>
                   <Typography variant="h3" sx={{ fontWeight: 700 }}>
-                    ${auction.currentBid.toLocaleString()}
+                    ${getCurrentPrice().toLocaleString()}
                   </Typography>
                 </Box>
                 <Chip
@@ -279,7 +383,7 @@ const ProductDetails = () => {
                 />
               </Box>
               <Typography sx={{ opacity: 0.8, mb: 3 }}>
-                Starting price: ${auction.startingPrice.toLocaleString()}
+                Starting price: ${auction.starting_price.toLocaleString()}
               </Typography>
               <Box component="form" onSubmit={handleBid}>
                 <TextField
@@ -288,7 +392,7 @@ const ProductDetails = () => {
                   type="number"
                   value={bidAmount}
                   onChange={(e) => setBidAmount(e.target.value)}
-                  helperText={`Minimum bid: $${auction.minimumBid.toLocaleString()}`}
+                  helperText={`Minimum bid: $${getMinimumBid().toLocaleString()}`}
                   sx={{
                     mb: 3,
                     '& .MuiOutlinedInput-root': {
@@ -315,7 +419,7 @@ const ProductDetails = () => {
                   variant="contained"
                   size="large"
                   type="submit"
-                  disabled={Number(bidAmount) < auction.minimumBid}
+                  disabled={!isBidValid()}
                   sx={{
                     bgcolor: 'white',
                     color: 'primary.main',
@@ -361,20 +465,12 @@ const ProductDetails = () => {
                 </Avatar>
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {auction.seller.name}
+                    {/* Show seller email until we implement proper seller profiles */}
+                    Seller ID: {auction.seller_id}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip
-                      size="small"
-                      label={`${auction.seller.rating}/5`}
-                      sx={{
-                        bgcolor: 'primary.lighter',
-                        color: 'primary.dark',
-                        fontWeight: 600,
-                      }}
-                    />
                     <Typography variant="body2" color="text.secondary">
-                      ({auction.seller.totalSales} sales)
+                      Contact through the platform
                     </Typography>
                   </Box>
                 </Box>

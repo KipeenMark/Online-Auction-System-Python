@@ -50,6 +50,9 @@ const MyAuctions = () => {
 
   useEffect(() => {
     fetchAuctions();
+    // Set up polling for real-time updates
+    const interval = setInterval(fetchAuctions, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
   }, []);
 
   const fetchAuctions = async () => {
@@ -75,6 +78,17 @@ const MyAuctions = () => {
       const now = new Date();
       const categorizedAuctions = response.data.reduce((acc, auction) => {
         const endTime = new Date(auction.end_time);
+        
+        // Debug logging
+        console.log('Categorizing auction:', {
+          id: auction._id,
+          title: auction.title,
+          endTime: endTime.toISOString(),
+          now: now.toISOString(),
+          hasBids: auction.bids && auction.bids.length > 0,
+          isEnded: endTime < now
+        });
+        
         if (endTime < now) {
           acc.completed.push(auction);
         } else if (auction.bids && auction.bids.length > 0) {
@@ -137,16 +151,31 @@ const MyAuctions = () => {
   };
 
   const formatTimeLeft = (endTime) => {
-    const end = new Date(endTime);
-    const now = new Date();
-    const diff = end - now;
-    
-    if (diff < 0) return 'Ended';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    return `${days}d ${hours}h left`;
+    try {
+      const end = new Date(endTime);
+      const now = new Date();
+      const diff = end - now;
+
+      // If auction has ended
+      if (diff < 0) {
+        return "Ended";
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      // Format the time remaining
+      if (days > 0) {
+        return `${days} day${days !== 1 ? 's' : ''}, ${hours} hour${hours !== 1 ? 's' : ''} left`;
+      } else if (hours > 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''} left`;
+      } else {
+        return "Ending soon";
+      }
+    } catch (err) {
+      console.error('Error formatting time:', err);
+      return 'Invalid date';
+    }
   };
 
   const getAuctionsByStatus = () => {

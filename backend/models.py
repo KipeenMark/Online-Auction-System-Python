@@ -31,11 +31,16 @@ class Auction:
         self.starting_price = float(starting_price)
         self.minimum_increment = float(minimum_increment)
         self.current_bid = float(starting_price)
-        self.end_time = end_time
+        # Ensure end_time is UTC
+        if isinstance(end_time, str):
+            self.end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        else:
+            self.end_time = end_time
         self.image_url = image_url
         # Convert seller_id to ObjectId if it's not already one
         self.seller_id = seller_id if isinstance(seller_id, ObjectId) else ObjectId(str(seller_id))
-        self.created_at = datetime.utcnow()
+        # Ensure created_at is UTC
+        self.created_at = datetime.now(self.end_time.tzinfo)
         self.bids = []
 
     def to_dict(self):

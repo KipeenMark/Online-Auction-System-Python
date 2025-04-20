@@ -43,6 +43,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     isAuthenticated,
     user,
+    token: localStorage.getItem('token'),
     login,
     logout,
     loading

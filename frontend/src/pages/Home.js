@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Container,
   Grid,
@@ -28,17 +30,37 @@ import { useNavigate } from 'react-router-dom';
 const Home = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [auctions, setAuctions] = useState([]);
 
-  // Simulate loading
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+    fetchAuctions();
+    // Set up polling for real-time updates
+    const interval = setInterval(fetchAuctions, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchAuctions = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(
+        'http://localhost:5000/api/auctions',
+        {
+          headers: token ? {
+            'Authorization': `Bearer ${token}`
+          } : {}
+        }
+      );
+      setAuctions(response.data);
+    } catch (err) {
+      console.error('Failed to fetch auctions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const categories = [
     { label: 'All', value: 0 },
@@ -48,42 +70,33 @@ const Home = () => {
     { label: 'Home & Garden', value: 4 },
   ];
 
-  const auctions = [
-    {
-      id: 1,
-      title: "Vintage Watch Collection",
-      currentBid: 1500,
-      endTime: "2024-04-20T18:00:00",
-      imageUrl: "https://placeholder.com/400x300",
-      description: "Rare collection of vintage watches from the 1960s"
-    },
-    {
-      id: 2,
-      title: "Gaming Console Bundle",
-      currentBid: 800,
-      endTime: "2024-04-21T15:00:00",
-      imageUrl: "https://placeholder.com/400x300",
-      description: "Latest gaming console with 5 popular games included"
-    },
-    {
-      id: 3,
-      title: "Antique Furniture Set",
-      currentBid: 2500,
-      endTime: "2024-04-22T12:00:00",
-      imageUrl: "https://placeholder.com/400x300",
-      description: "Beautiful Victorian-era furniture set in excellent condition"
-    }
-  ];
 
   const formatTimeLeft = (endTime) => {
-    const end = new Date(endTime);
-    const now = new Date();
-    const diff = end - now;
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    return `${days}d ${hours}h left`;
+    try {
+      const end = new Date(endTime);
+      const now = new Date();
+      const diff = end - now;
+
+      // If auction has ended
+      if (diff < 0) {
+        return "Ended";
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      // Format the time remaining
+      if (days > 0) {
+        return `${days} day${days !== 1 ? 's' : ''}, ${hours} hour${hours !== 1 ? 's' : ''} left`;
+      } else if (hours > 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''} left`;
+      } else {
+        return "Ending soon";
+      }
+    } catch (err) {
+      console.error('Error formatting time:', err);
+      return 'Invalid date';
+    }
   };
 
   const filteredAuctions = auctions.filter(auction =>
@@ -256,7 +269,7 @@ const Home = () => {
         {/* Auctions Grid */}
       <Grid container spacing={3}>
         {filteredAuctions.map((auction) => (
-          <Grid item xs={12} sm={6} md={4} key={auction.id}>
+          <Grid item xs={12} sm={6} md={4} key={auction._id}>
             <Fade in={!loading} timeout={500}>
               <Card
                 sx={{
@@ -278,7 +291,7 @@ const Home = () => {
                   <CardMedia
                     component="img"
                     height="240"
-                    image={auction.imageUrl}
+                    image={auction.image_url || 'https://via.placeholder.com/400x300'}
                     alt={auction.title}
                     className="auction-image"
                     sx={{
@@ -340,12 +353,12 @@ const Home = () => {
                         Current Bid
                       </Typography>
                       <Typography variant="h6" color="primary" sx={{ fontWeight: 600 }}>
-                        ${auction.currentBid.toLocaleString()}
+                        ${(auction.current_bid || auction.starting_price).toLocaleString()}
                       </Typography>
                     </Box>
                     <Chip
                       icon={<AccessTimeIcon />}
-                      label={formatTimeLeft(auction.endTime)}
+                      label={formatTimeLeft(auction.end_time)}
                       size="small"
                       sx={{
                         bgcolor: 'primary.lighter',
@@ -361,7 +374,7 @@ const Home = () => {
                       variant="contained"
                       fullWidth
                       color="primary"
-                      onClick={() => navigate(`/product/${auction.id}`)}
+                      onClick={() => navigate(`/product/${auction._id}`)}
                       sx={{
                         py: 1.5,
                         fontWeight: 600,

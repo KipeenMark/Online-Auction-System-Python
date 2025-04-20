@@ -27,7 +27,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Configure JWT
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key')  # Change this in production
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)  # Increase token expiration to 30 days
+app.config['JWT_ERROR_MESSAGE_KEY'] = 'msg'  # Make sure error messages use 'msg' key
 jwt = JWTManager(app)
 
 # Connect to MongoDB
@@ -116,6 +117,12 @@ def get_auction(id):
 @jwt_required()
 def create_auction():
     try:
+        # First check if we have a valid Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            print("Missing or invalid Authorization header")
+            raise APIError("Missing or invalid authorization", 401)
+            
         data = request.get_json()
         # Detailed logging for debugging
         print("Received auction data:")
@@ -123,8 +130,15 @@ def create_auction():
             print(f"{k}: {v}")
         
         validate_auction_data(data)
-        user_id = get_jwt_identity()
-        print(f"User ID from JWT: {user_id}")
+        
+        try:
+            user_id = get_jwt_identity()
+            print(f"User ID from JWT: {user_id}")
+            if not user_id:
+                raise APIError("Invalid JWT token: no user ID", 401)
+        except Exception as e:
+            print(f"JWT error: {str(e)}")
+            raise APIError(f"Authentication error: {str(e)}", 401)
         
         try:
             # Ensure valid ObjectId format for user_id
@@ -176,7 +190,12 @@ def place_bid(id):
         if not auction:
             raise APIError('Auction not found', 404)
             
-        if auction['end_time'] < datetime.utcnow():
+        auction_end_time = auction['end_time']
+        if isinstance(auction_end_time, str):
+            auction_end_time = datetime.fromisoformat(auction_end_time.replace('Z', '+00:00'))
+        current_time = datetime.now(auction_end_time.tzinfo)
+        
+        if auction_end_time < current_time:
             raise APIError('Auction has ended', 400)
             
         validate_bid_data(data, auction['current_bid'])
