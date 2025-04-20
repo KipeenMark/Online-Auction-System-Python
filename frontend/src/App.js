@@ -15,6 +15,7 @@ import MyAuctions from './pages/MyAuctions';
 import MyBids from './pages/MyBids';
 import ProductDetails from './pages/ProductDetails';
 import CreateAuction from './pages/CreateAuction';
+import EditAuction from './pages/EditAuction';
 
 // Create theme
 const theme = createTheme({
@@ -168,6 +169,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <MyAuctions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/edit-auction/:id"
+                element={
+                  <PrivateRoute>
+                    <EditAuction />
                   </PrivateRoute>
                 }
               />

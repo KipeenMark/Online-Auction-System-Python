@@ -146,7 +146,20 @@ const MyAuctions = () => {
   };
 
   const handleEditClick = () => {
-    navigate(`/edit-auction/${selectedAuction?.id}`);
+    if (!selectedAuction?._id) {
+      console.error('No auction selected for editing');
+      return;
+    }
+
+    // Check if auction has ended
+    const endTime = new Date(selectedAuction.end_time);
+    if (endTime < new Date()) {
+      setError('Cannot edit completed auctions');
+      handleMenuClose();
+      return;
+    }
+
+    navigate(`/edit-auction/${selectedAuction._id}`);
     handleMenuClose();
   };
 

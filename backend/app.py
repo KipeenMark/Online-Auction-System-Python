@@ -179,6 +179,44 @@ def create_auction():
     except Exception as e:
         raise APIError(str(e), 500)
 
+@app.route('/api/auctions/<id>', methods=['PUT'])
+@jwt_required()
+def update_auction(id):
+    try:
+        data = request.get_json()
+        user_id = get_jwt_identity()
+        
+        auction = find_auction_by_id(db, id)
+        if not auction:
+            raise APIError('Auction not found', 404)
+            
+        # Check if the user is the auction owner
+        if str(auction['seller_id']) != str(user_id):
+            raise APIError('Not authorized to update this auction', 403)
+            
+        # Only allow updating certain fields
+        update_fields = {
+            'title': data.get('title', auction['title']),
+            'description': data.get('description', auction['description']),
+            'minimum_increment': float(data.get('minimumIncrement', auction['minimum_increment'])),
+            'image_url': data.get('imageUrl', auction['image_url'])
+        }
+        
+        # Update the auction
+        db.auctions.update_one(
+            {'_id': auction['_id']},
+            {'$set': update_fields}
+        )
+        
+        return jsonify({'message': 'Auction updated successfully'}), 200
+        
+    except APIError as e:
+        raise e
+    except ValueError as e:
+        raise APIError(f'Invalid data format: {str(e)}', 422)
+    except Exception as e:
+        raise APIError(str(e), 500)
+
 @app.route('/api/auctions/<id>/bid', methods=['POST'])
 @jwt_required()
 def place_bid(id):
