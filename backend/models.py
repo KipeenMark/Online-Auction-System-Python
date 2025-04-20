@@ -9,7 +9,7 @@ class User:
         self.phone = phone
         self.password = password_hash
         self.created_at = datetime.utcnow()
-        self.rating = 0
+        self.rating = 0 
         self.total_sales = 0
 
     def to_dict(self):
@@ -33,7 +33,8 @@ class Auction:
         self.current_bid = float(starting_price)
         self.end_time = end_time
         self.image_url = image_url
-        self.seller_id = ObjectId(seller_id)
+        # Convert seller_id to ObjectId if it's not already one
+        self.seller_id = seller_id if isinstance(seller_id, ObjectId) else ObjectId(str(seller_id))
         self.created_at = datetime.utcnow()
         self.bids = []
 

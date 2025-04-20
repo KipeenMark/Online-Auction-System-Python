@@ -42,45 +42,38 @@ def serialize_mongo_doc(doc):
 
 def validate_auction_data(data):
     """Validate auction creation data"""
+    print("Validating auction data:", {k: v for k, v in data.items() if k != 'imageUrl'})
+    
+    # Check required fields
     required_fields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'endTime']
     for field in required_fields:
         if field not in data:
             raise APIError(f"Missing required field: {field}")
-            
-    # Validate image if provided
-    if 'imageUrl' in data:
-        image_data = data['imageUrl']
-        max_image_size = 2 * 1024 * 1024  # 2MB
-        
-        # Validate base64 format if image is provided
-        valid_chars = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
-        if not all(c in valid_chars for c in image_data):
-            raise APIError("Invalid image data format", 422)
-        
-        # Check image size
-        if len(image_data) > max_image_size:
-            raise APIError("Image size too large. Maximum size is 2MB", 422)
-    
+        elif not str(data[field]).strip():  # Check for empty values
+            raise APIError(f"Field cannot be empty: {field}")
+
+    # Validate numeric fields
     try:
         starting_price = float(data['startingPrice'])
         if starting_price <= 0:
             raise APIError("Starting price must be greater than 0")
     except (ValueError, TypeError):
-        raise APIError("Starting price must be a valid number")
+        raise APIError("Starting price must be a valid number", 422)
         
     try:
         minimum_increment = float(data['minimumIncrement'])
         if minimum_increment <= 0:
             raise APIError("Minimum increment must be greater than 0")
     except (ValueError, TypeError):
-        raise APIError("Minimum increment must be a valid number")
+        raise APIError("Minimum increment must be a valid number", 422)
 
+    # Validate endTime
     try:
         end_time = datetime.fromisoformat(data['endTime'].replace('Z', '+00:00'))
         if end_time <= datetime.utcnow():
             raise APIError("End time must be in the future")
     except ValueError:
-        raise APIError("Invalid end time format")
+        raise APIError("Invalid end time format", 422)
 
 def validate_bid_data(data, current_bid):
     """Validate bid data"""

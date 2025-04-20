@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from pymongo import MongoClient
+from bson import ObjectId
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import os
@@ -116,15 +117,20 @@ def get_auction(id):
 def create_auction():
     try:
         data = request.get_json()
-        print("Received auction data:", {
-            k: v[:50] + '...' if k == 'imageUrl' and isinstance(v, str) and len(v) > 50 else v
-            for k, v in data.items()
-        })
+        # Detailed logging for debugging
+        print("Received auction data:")
+        for k, v in data.items():
+            print(f"{k}: {v}")
         
         validate_auction_data(data)
         user_id = get_jwt_identity()
+        print(f"User ID from JWT: {user_id}")
         
         try:
+            # Ensure valid ObjectId format for user_id
+            if not ObjectId.is_valid(user_id):
+                raise APIError("Invalid user ID format", 422)
+                
             # Create auction with base data first
             auction = Auction(
                 data['title'],
@@ -139,10 +145,16 @@ def create_auction():
             # Handle image if provided
             if 'imageUrl' in data and data['imageUrl']:
                 auction.image_url = data['imageUrl']  # Set image URL if provided
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             print(f"Error creating auction object: {str(e)}")
             print(f"Received data: {data}")
-            raise APIError(f"Invalid auction data: {str(e)}", 422)
+            print(f"User ID type: {type(user_id)}, value: {user_id}")
+            raise APIError(f"Invalid auction data format: {str(e)}", 422)
+        except Exception as e:
+            print(f"Unexpected error creating auction: {str(e)}")
+            print(f"Data: {data}")
+            print(f"User ID: {user_id}")
+            raise APIError(f"Error creating auction: {str(e)}", 500)
         
         result = db.auctions.insert_one(auction.to_dict())
         created_auction = find_auction_by_id(db, result.inserted_id)

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,13 +11,10 @@ import {
   Box,
   Grid,
   InputAdornment,
-  IconButton,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import ImageIcon from '@mui/icons-material/Image';
-import ClearIcon from '@mui/icons-material/Clear';
 
 const CreateAuction = () => {
   const navigate = useNavigate();
@@ -31,9 +28,6 @@ const CreateAuction = () => {
     minimumIncrement: '',
     duration: ''
   });
-  const [image, setImage] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState('');
-  const fileInputRef = useRef();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -41,48 +35,6 @@ const CreateAuction = () => {
       ...formData,
       [name]: value,
     });
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Clear previous errors
-    setError('');
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setError('Please select a valid image file (jpg, png, etc.)');
-      e.target.value = ''; // Reset file input
-      return;
-    }
-
-    // Check file size (2MB limit)
-    const maxSize = 2 * 1024 * 1024; // 2MB in bytes
-    if (file.size > maxSize) {
-      setError(`Image size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds the 2MB limit. Please choose a smaller image.`);
-      e.target.value = ''; // Reset file input
-      return;
-    }
-
-    // If validation passes, set the image and create preview
-    setImage(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewUrl(reader.result);
-    };
-    reader.onerror = () => {
-      setError('Failed to read image file');
-      setImage(null);
-      setPreviewUrl('');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveImage = () => {
-    setImage(null);
-    setPreviewUrl('');
-    fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -128,42 +80,6 @@ const CreateAuction = () => {
         minimumIncrement: Number(minimumIncrement),
         endTime: endTimeUTC.toISOString()
       };
-
-      // Process image only if one was selected
-      if (image) {
-        try {
-          const reader = new FileReader();
-          await new Promise((resolve, reject) => {
-            reader.onload = () => {
-              try {
-                const base64String = reader.result;
-                const base64Data = base64String.split('base64,')[1];
-                
-                // Only validate and add image if successfully processed
-                if (base64Data) {
-                  const approximateSize = (base64Data.length * 0.75) / 1024 / 1024;
-                  if (approximateSize <= 2) {
-                    auctionData.imageUrl = base64Data;
-                  } else {
-                    console.warn('Image skipped: Size exceeds 2MB limit');
-                  }
-                }
-                resolve();
-              } catch (err) {
-                console.warn('Image processing skipped:', err);
-                resolve();
-              }
-            };
-            reader.onerror = () => {
-              console.warn('Image reading skipped');
-              resolve();
-            };
-            reader.readAsDataURL(image);
-          });
-        } catch (err) {
-          console.warn('Image handling skipped:', err);
-        }
-      }
 
       // Log data for debugging (safely handle all image cases)
       const dataToPrint = { ...auctionData };
@@ -322,44 +238,6 @@ const CreateAuction = () => {
                   ),
                 }}
               />
-            </Grid>
-
-            {/* Image Upload */}
-            <Grid item xs={12}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                style={{ display: 'none' }}
-                ref={fileInputRef}
-              />
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<ImageIcon />}
-                  onClick={() => fileInputRef.current.click()}
-                >
-                  {image ? 'Change Image' : 'Upload Image'}
-                </Button>
-                {image && (
-                  <IconButton onClick={handleRemoveImage} color="error">
-                    <ClearIcon />
-                  </IconButton>
-                )}
-              </Box>
-              {previewUrl && (
-                <Box sx={{ mt: 2, position: 'relative' }}>
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '200px',
-                      objectFit: 'contain'
-                    }}
-                  />
-                </Box>
-              )}
             </Grid>
 
             {/* Submit Button */}
