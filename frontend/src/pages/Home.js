@@ -99,10 +99,14 @@ const Home = () => {
     }
   };
 
-  const filteredAuctions = auctions.filter(auction =>
-    auction.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    auction.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAuctions = auctions.filter(auction => {
+    const matchesSearch = auction.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      auction.description.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesCategory = selectedCategory === 0 || auction.category === selectedCategory;
+    
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <>

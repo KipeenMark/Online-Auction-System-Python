@@ -153,12 +153,9 @@ def create_auction():
                 float(data['minimumIncrement']),
                 datetime.fromisoformat(data['endTime'].replace('Z', '+00:00')),
                 user_id,
-                None  # No image by default
+                data.get('imageUrl'),  # Image URL (can be None)
+                data.get('category', 1)  # Default to category 1 if not provided
             )
-
-            # Handle image if provided
-            if 'imageUrl' in data and data['imageUrl']:
-                auction.image_url = data['imageUrl']  # Set image URL if provided
         except (TypeError, ValueError) as e:
             print(f"Error creating auction object: {str(e)}")
             print(f"Received data: {data}")

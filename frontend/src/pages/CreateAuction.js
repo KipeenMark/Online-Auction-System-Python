@@ -29,7 +29,8 @@ const CreateAuction = () => {
     startingPrice: '',
     minimumIncrement: '',
     duration: '',
-    imageUrl: ''
+    imageUrl: '',
+    category: 1
   });
   const [imagePreview, setImagePreview] = useState('');
 
@@ -41,7 +42,7 @@ const CreateAuction = () => {
     });
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -65,11 +66,68 @@ const CreateAuction = () => {
       setLoading(false);
     };
     reader.onloadend = () => {
-      const base64String = reader.result;
-      setFormData(prev => ({ ...prev, imageUrl: base64String }));
-      setImagePreview(base64String);
-      setError(''); // Clear any previous errors
-      setLoading(false);
+      const compressImage = async (base64String) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Calculate new dimensions while maintaining aspect ratio
+            let width = img.width;
+            let height = img.height;
+            const maxWidth = 800;
+            const maxHeight = 800;
+            
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw and compress image
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Try different quality levels until size is acceptable
+            let quality = 0.7;
+            let compressedString = canvas.toDataURL('image/jpeg', quality);
+            
+            while (compressedString.length > 2 * 1024 * 1024 && quality > 0.1) {
+              quality -= 0.1;
+              compressedString = canvas.toDataURL('image/jpeg', quality);
+            }
+            
+            console.log('Compressed image size:', compressedString.length);
+            resolve(compressedString);
+          };
+          img.src = base64String;
+        });
+      };
+
+      let base64String = reader.result;
+      
+      // Check if image needs compression
+      if (base64String.length > 1024 * 1024) { // If larger than 1MB
+        compressImage(base64String).then(compressedString => {
+          setFormData(prev => ({ ...prev, imageUrl: compressedString }));
+          setImagePreview(compressedString);
+          setError(''); // Clear any previous errors
+          setLoading(false);
+        });
+      } else {
+        setFormData(prev => ({ ...prev, imageUrl: base64String }));
+        setImagePreview(base64String);
+        setError(''); // Clear any previous errors
+        setLoading(false);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -86,7 +144,7 @@ const CreateAuction = () => {
 
     try {
       // Validate required fields
-      const requiredFields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'duration'];
+      const requiredFields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'duration', 'category'];
       for (const field of requiredFields) {
         if (!formData[field]) {
           throw new Error(`Please fill in the ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
@@ -121,7 +179,8 @@ const CreateAuction = () => {
         startingPrice: Number(startingPrice),
         minimumIncrement: Number(minimumIncrement),
         endTime: endTimeUTC.toISOString(),
-        imageUrl: formData.imageUrl || null
+        imageUrl: formData.imageUrl || null,
+        category: Number(formData.category)
       };
 
       // Log data for debugging (safely handle all image cases)
@@ -134,6 +193,47 @@ const CreateAuction = () => {
       console.log('Sending auction data:', dataToPrint);
 
 
+      // If image is too large, compress it before sending
+      if (formData.imageUrl && formData.imageUrl.length > 1024 * 1024) {
+        // Log the image size for debugging
+        console.log('Original image size:', formData.imageUrl.length);
+        setError('Image is too large, trying to compress...');
+        
+        // Create temporary image for compression
+        const img = new Image();
+        img.src = formData.imageUrl;
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Calculate new dimensions while maintaining aspect ratio
+            let width = img.width;
+            let height = img.height;
+            const maxWidth = 800;
+            const maxHeight = 800;
+            
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw and compress image
+            ctx.drawImage(img, 0, 0, width, height);
+            auctionData.imageUrl = canvas.toDataURL('image/jpeg', 0.7);
+            console.log('Compressed image size:', auctionData.imageUrl.length);
+            resolve();
+          };
+        });
+      }
+
       const response = await axios.post(
         'http://localhost:5000/api/auctions',
         auctionData,
@@ -141,7 +241,9 @@ const CreateAuction = () => {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          maxContentLength: 10 * 1024 * 1024, // 10MB max
+          maxBodyLength: 10 * 1024 * 1024
         }
       );
 
@@ -323,6 +425,25 @@ const CreateAuction = () => {
                   </Button>
                 </Box>
               )}
+            </Grid>
+
+            {/* Category */}
+            <Grid item xs={12}>
+              <TextField
+                required
+                fullWidth
+                select
+                label="Category"
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                SelectProps={{ native: true }}
+              >
+                <option value={1}>Electronics</option>
+                <option value={2}>Collectibles</option>
+                <option value={3}>Fashion</option>
+                <option value={4}>Home & Garden</option>
+              </TextField>
             </Grid>
 
             {/* Duration */}

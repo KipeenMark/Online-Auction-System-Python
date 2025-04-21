@@ -204,10 +204,20 @@ const MyAuctions = () => {
     }
   };
 
+  // Default placeholder image as base64
+  const defaultPlaceholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNmMGYwZjAiLz4KPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlIEF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+';
+
   const renderAuctionCard = (auction) => {
     const bidsCount = auction.bids?.length || 0;
     const currentBid = auction.current_bid || auction.starting_price;
-    const imageUrl = auction.image_url || 'https://via.placeholder.com/400x300';
+    const imageUrl = auction.image_url || defaultPlaceholderImage;
+
+    // Debug logging for image URL
+    console.log('Auction image URL:', {
+      auctionId: auction._id,
+      title: auction.title,
+      imageUrl: auction.image_url ? 'Present' : 'Using placeholder'
+    });
 
     return (
       <Grid item xs={12} sm={6} md={4} key={auction._id}>
@@ -217,6 +227,16 @@ const MyAuctions = () => {
             height="200"
             image={imageUrl}
             alt={auction.title}
+            sx={{
+              objectFit: 'cover',
+              bgcolor: 'background.paper'
+            }}
+            onError={(e) => {
+              console.error('Image load error:', e);
+              if (e.target.src !== defaultPlaceholderImage) {
+                e.target.src = defaultPlaceholderImage;
+              }
+            }}
           />
           <CardContent sx={{ flexGrow: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

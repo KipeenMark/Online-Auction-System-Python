@@ -48,7 +48,7 @@ def validate_auction_data(data):
     print("Validating auction data:", {k: v for k, v in data.items() if k != 'imageUrl'})
     
     # Check required fields
-    required_fields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'endTime']
+    required_fields = ['title', 'description', 'startingPrice', 'minimumIncrement', 'endTime', 'category']
     for field in required_fields:
         if field not in data:
             raise APIError(f"Missing required field: {field}")
@@ -79,6 +79,36 @@ def validate_auction_data(data):
             raise APIError("End time must be in the future")
     except ValueError:
         raise APIError("Invalid end time format", 422)
+    
+    # Validate category
+    try:
+        category = int(data['category'])
+        if category < 1 or category > 4:
+            raise APIError("Invalid category value. Must be between 1 and 4")
+    except (ValueError, TypeError):
+        raise APIError("Category must be a valid number", 422)
+        
+    # Validate image if provided
+    if data.get('imageUrl'):
+        if not isinstance(data['imageUrl'], str):
+            raise APIError("Image data must be a string", 422)
+        
+        # Check if it's a valid base64 image
+        try:
+            if not data['imageUrl'].startswith('data:image/'):
+                raise APIError("Invalid image format. Must be a base64 encoded image", 422)
+                
+            # Get the image size (roughly)
+            # Base64 string length * 0.75 = approximate size in bytes
+            image_size = len(data['imageUrl']) * 0.75
+            
+            # Check if image is too large (10MB limit)
+            if image_size > 10 * 1024 * 1024:
+                raise APIError("Image size too large. Maximum size is 10MB", 422)
+                
+        except Exception as e:
+            print(f"Image validation error: {str(e)}")
+            raise APIError(f"Image validation failed: {str(e)}", 422)
 
 def validate_bid_data(data, current_bid):
     """Validate bid data"""

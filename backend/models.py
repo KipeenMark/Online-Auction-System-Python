@@ -25,7 +25,7 @@ class User:
         }
 
 class Auction:
-    def __init__(self, title, description, starting_price, minimum_increment, end_time, seller_id, image_url=None):
+    def __init__(self, title, description, starting_price, minimum_increment, end_time, seller_id, image_url=None, category=1):
         self.title = title
         self.description = description
         self.starting_price = float(starting_price)
@@ -39,6 +39,8 @@ class Auction:
         self.image_url = image_url
         # Convert seller_id to ObjectId if it's not already one
         self.seller_id = seller_id if isinstance(seller_id, ObjectId) else ObjectId(str(seller_id))
+        # Add category
+        self.category = int(category)
         # Ensure created_at is UTC
         self.created_at = datetime.now(self.end_time.tzinfo)
         self.bids = []
@@ -53,6 +55,7 @@ class Auction:
             'end_time': self.end_time,
             'image_url': self.image_url,
             'seller_id': self.seller_id,
+            'category': self.category,
             'created_at': self.created_at,
             'bids': self.bids
         }

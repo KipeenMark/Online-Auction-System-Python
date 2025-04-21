@@ -24,6 +24,9 @@ import {
   Timeline,
 } from '@mui/icons-material';
 
+// Default placeholder image as base64
+const defaultPlaceholderImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwMCIgaGVpZ2h0PSI2MDAiIGZpbGw9IiNmMGYwZjAiLz4KPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIzMiIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlIEF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+';
+
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -227,13 +230,23 @@ const ProductDetails = () => {
             }}
           >
             <Box sx={{ position: 'relative' }}>
-              <img
-                src={auction.image_url || 'https://via.placeholder.com/800x600'}
+              <Box
+                component="img"
+                src={auction.image_url || defaultPlaceholderImage}
                 alt={auction.title}
-                style={{
+                onError={(e) => {
+                  console.error('Image load error:', e);
+                  if (e.target.src !== defaultPlaceholderImage) {
+                    e.target.src = defaultPlaceholderImage;
+                  }
+                }}
+                sx={{
                   width: '100%',
                   height: 'auto',
                   display: 'block',
+                  maxHeight: '600px',
+                  objectFit: 'cover',
+                  bgcolor: 'background.paper'
                 }}
               />
               <Box
